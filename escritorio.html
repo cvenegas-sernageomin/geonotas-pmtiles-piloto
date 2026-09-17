@@ -1,0 +1,62 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>PMTiles vs imageOverlay - piloto Geonotas</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pmtiles@3.0.7/dist/pmtiles.js"></script>
+<style>
+  body{font-family:sans-serif;margin:0}
+  .row{display:flex;height:50vh}
+  .col{flex:1;position:relative}
+  .col h3{position:absolute;top:0;left:0;z-index:1000;background:#fff;margin:0;padding:4px 8px;font-size:13px}
+  .map{width:100%;height:100%}
+  #log{font-size:12px;padding:8px;white-space:pre-wrap;background:#111;color:#0f0}
+</style>
+</head>
+<body>
+<div class="row">
+  <div class="col"><h3>A: imageOverlay actual (GB-141-142, whole WebP)</h3><div id="mapA" class="map"></div></div>
+  <div class="col"><h3>B: PMTiles raster (GB-141-142, tiles)</h3><div id="mapB" class="map"></div></div>
+</div>
+<div class="row">
+  <div class="col"><h3>C: imageOverlay actual (GB-192-193)</h3><div id="mapC" class="map"></div></div>
+  <div class="col"><h3>D: PMTiles raster (GB-192-193)</h3><div id="mapD" class="map"></div></div>
+</div>
+<div id="log">cargando...</div>
+<script>
+const b1 = {n:-22.0, s:-22.5, e:-69.999277, w:-70.28261};
+const b2 = {n:-29.5, s:-30.0, e:-70.0, w:-70.5};
+function toLL(b){ return [[b.s,b.w],[b.n,b.e]]; }
+
+function baseMap(id, boundsLL){
+  const m = L.map(id, {zoomSnap:0.25}).fitBounds(boundsLL);
+  return m;
+}
+
+const mapA = baseMap('mapA', toLL(b1));
+L.imageOverlay('CGCH_GB_141_142_TextoyMapa.webp', toLL(b1)).addTo(mapA);
+
+const mapB = baseMap('mapB', toLL(b1));
+const pB = new pmtiles.PMTiles('CGCH_GB_141_142.pmtiles');
+pmtiles.leafletRasterLayer(pB, {}).addTo(mapB);
+
+const mapC = baseMap('mapC', toLL(b2));
+L.imageOverlay('CGCH_GB_192_193_TextoyMapa.webp', toLL(b2)).addTo(mapC);
+
+const mapD = baseMap('mapD', toLL(b2));
+const pD = new pmtiles.PMTiles('CGCH_GB_192_193.pmtiles');
+pmtiles.leafletRasterLayer(pD, {}).addTo(mapD);
+
+// Sincronizar pan/zoom entre pares para comparar en igualdad de condiciones
+function link(m1, m2){
+  let guard = false;
+  m1.on('move zoom', () => { if(guard) return; guard = true; m2.setView(m1.getCenter(), m1.getZoom(), {animate:false}); guard = false; });
+  m2.on('move zoom', () => { if(guard) return; guard = true; m1.setView(m2.getCenter(), m2.getZoom(), {animate:false}); guard = false; });
+}
+link(mapA, mapB);
+link(mapC, mapD);
+</script>
+</body>
+</html>

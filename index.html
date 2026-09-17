@@ -1,0 +1,101 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Piloto PMTiles - Geonotas</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.css">
+<script src="https://cdn.jsdelivr.net/npm/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pmtiles@3.0.7/dist/pmtiles.js"></script>
+<style>
+  html,body{margin:0;height:100%;font-family:sans-serif;overflow:hidden}
+  #map{position:absolute;top:96px;bottom:56px;left:0;right:0}
+  #bar{position:fixed;top:0;left:0;right:0;height:96px;z-index:1000;background:#fff;
+       display:flex;flex-direction:column;gap:6px;padding:6px 8px;box-sizing:border-box;
+       box-shadow:0 2px 6px rgba(0,0,0,.15)}
+  #bar .fila{display:flex;gap:6px}
+  #bar button{flex:1;font-size:15px;padding:10px 4px;min-height:42px;border:1px solid #999;
+              border-radius:8px;background:#f2f2f2}
+  #bar button.activo{background:#2b6cb0;color:#fff;border-color:#2b6cb0;font-weight:bold}
+  #stats{position:fixed;left:0;right:0;bottom:0;height:56px;z-index:1000;background:#111;color:#0f0;
+         font-size:12px;padding:6px 8px;box-sizing:border-box;white-space:pre-line;overflow:hidden}
+</style>
+</head>
+<body>
+<div id="bar">
+  <div class="fila">
+    <button id="btn141" class="activo">GB-141-142</button>
+    <button id="btn192">GB-192-193</button>
+  </div>
+  <div class="fila">
+    <button id="btnOverlay" class="activo">imageOverlay (actual)</button>
+    <button id="btnTiles">PMTiles (piloto)</button>
+  </div>
+</div>
+<div id="map"></div>
+<div id="stats">cargando…</div>
+<script>
+const CARTAS = {
+  '141': {webp:'CGCH_GB_141_142_TextoyMapa.webp', pmtiles:'CGCH_GB_141_142.pmtiles',
+          bounds:{n:-22.0,s:-22.5,e:-69.999277,w:-70.28261}},
+  '192': {webp:'CGCH_GB_192_193_TextoyMapa.webp', pmtiles:'CGCH_GB_192_193.pmtiles',
+          bounds:{n:-29.5,s:-30.0,e:-70.0,w:-70.5}},
+};
+let cartaActual = '141';
+let modoActual = 'overlay'; // 'overlay' | 'tiles'
+let capaActual = null;
+let vecesCargado = 0;
+
+const map = L.map('map', {zoomSnap:0.25});
+map.setView([-20,-70], 5);
+
+function toLL(b){ return [[b.s,b.w],[b.n,b.e]]; }
+
+function medir(){
+  let txt = '';
+  if(modoActual === 'overlay' && capaActual && capaActual._image){
+    const img = capaActual._image;
+    const mb = (img.naturalWidth*img.naturalHeight*4/1e6).toFixed(1);
+    txt = `imageOverlay: ${img.naturalWidth}x${img.naturalHeight}px decodificados -> ~${mb} MB en memoria (SIEMPRE, sin importar el zoom)`;
+  } else if(modoActual === 'tiles'){
+    const tiles = document.querySelectorAll('#map .leaflet-tile');
+    let n=0, bytes=0;
+    tiles.forEach(t => { if(t.complete && t.naturalWidth){ n++; bytes += t.naturalWidth*t.naturalHeight*4; } });
+    txt = `PMTiles: ${n} tiles cargados -> ~${(bytes/1e6).toFixed(1)} MB en memoria (solo lo visible en pantalla)`;
+  }
+  document.getElementById('stats').textContent =
+    `Carta ${cartaActual} · modo ${modoActual} · cargas: ${vecesCargado}\n${txt}\nMuevete y haz zoom -- mira si se traba, tarda o el navegador se recarga solo.`;
+}
+
+function cargar(){
+  if(capaActual){ map.removeLayer(capaActual); capaActual = null; }
+  const c = CARTAS[cartaActual];
+  vecesCargado++;
+  if(modoActual === 'overlay'){
+    capaActual = L.imageOverlay(c.webp, toLL(c.bounds));
+    capaActual.addTo(map);
+    capaActual.on('load', medir);
+  } else {
+    const p = new pmtiles.PMTiles(c.pmtiles);
+    capaActual = pmtiles.leafletRasterLayer(p, {});
+    capaActual.addTo(map);
+    capaActual.on('load', medir);
+  }
+  map.fitBounds(toLL(c.bounds));
+  setTimeout(medir, 400);
+  setInterval(medir, 1500);
+}
+
+document.getElementById('btn141').onclick = () => { cartaActual='141'; setActivo('btn141','btn192'); cargar(); };
+document.getElementById('btn192').onclick = () => { cartaActual='192'; setActivo('btn192','btn141'); cargar(); };
+document.getElementById('btnOverlay').onclick = () => { modoActual='overlay'; setActivo('btnOverlay','btnTiles'); cargar(); };
+document.getElementById('btnTiles').onclick = () => { modoActual='tiles'; setActivo('btnTiles','btnOverlay'); cargar(); };
+function setActivo(onId, offId){
+  document.getElementById(onId).classList.add('activo');
+  document.getElementById(offId).classList.remove('activo');
+}
+
+cargar();
+</script>
+</body>
+</html>
